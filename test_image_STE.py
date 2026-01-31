@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from data.dataloader import ErasingData
 from models.sa_gan import STRnet2
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--numOfWorkers', type=int, default=0,
@@ -43,23 +44,24 @@ batchSize = args.batchSize
 loadSize = (args.loadSize, args.loadSize)
 dataRoot = args.dataRoot
 savePath = args.savePath
-result_with_mask = savePath + 'WithMaskOutput/'
-result_straight = savePath + 'StrOuput/'
+result_with_mask = os.path.join(savePath, 'WithMaskOutput')
+result_straight = os.path.join(savePath, 'StrOuput')
 #import pdb;pdb.set_trace()
 
 if not os.path.exists(savePath):
     os.makedirs(savePath)
+if not os.path.exists(result_with_mask):
     os.makedirs(result_with_mask)
+if not os.path.exists(result_straight):
     os.makedirs(result_straight)
-
 
 Erase_data = ErasingData(dataRoot, loadSize, training=False)
 Erase_data = DataLoader(Erase_data, batch_size=batchSize, shuffle=True, num_workers=args.numOfWorkers, drop_last=False)
 
 
 netG = STRnet2(3)
-
-netG.load_state_dict(torch.load(args.pretrained))
+device = torch.device('cuda' if cuda else 'cpu')
+netG.load_state_dict(torch.load(args.pretrained, map_location=device))
 
 #
 if cuda:
@@ -83,9 +85,10 @@ for imgs, gt, masks, path in (Erase_data):
     gt = gt.data.cpu()
     mask = masks.data.cpu()
     g_image_with_mask = gt * (mask) + g_image * (1- mask)
-
-    save_image(g_image_with_mask, result_with_mask+path[0])
-    save_image(g_image, result_straight+path[0])
+    
+    print(path[0])
+    save_image(g_image_with_mask, os.path.join(result_with_mask, path[0]))
+    save_image(g_image, os.path.join(result_straight, path[0]))
 
 
 

@@ -50,8 +50,8 @@ class ErasingData(Dataset):
     
     def __getitem__(self, index):
         img = Image.open(self.imageFiles[index])
-        mask = Image.open(self.imageFiles[index].replace('all_images','mask'))
-        gt = Image.open(self.imageFiles[index].replace('all_images','all_labels'))
+        mask = Image.open(self.imageFiles[index].replace('images','mask'))
+        gt = Image.open(self.imageFiles[index].replace('images','gts'))
         # import pdb;pdb.set_trace()
         if self.training:
         # ### for data augmentation
@@ -65,7 +65,7 @@ class ErasingData(Dataset):
         inputImage = self.ImgTrans(img.convert('RGB'))
         mask = self.ImgTrans(mask.convert('RGB'))
         groundTruth = self.ImgTrans(gt.convert('RGB'))
-        path = self.imageFiles[index].split('/')[-1]
+        path = self.imageFiles[index].replace('\\', '/').split('/')[-1]
        # import pdb;pdb.set_trace()
 
         return inputImage, groundTruth, mask, path

@@ -17,22 +17,16 @@ from loss.Loss import LossWithGAN_STE
 from models.Model import VGG16FeatureExtractor
 from models.sa_gan import STRnet2
 
-torch.set_num_threads(5)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"    ### set the gpu as No....
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"    ### set the gpu as No....
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--numOfWorkers', type=int, default=0,
-                    help='workers for dataloader')
-parser.add_argument('--modelsSavePath', type=str, default='',
-                    help='path for saving models')
-parser.add_argument('--logPath', type=str,
-                    default='')
+parser.add_argument('--numOfWorkers', type=int, default=0, help='workers for dataloader')
+parser.add_argument('--modelsSavePath', type=str, default='', help='path for saving models')
+parser.add_argument('--logPath', type=str, default='')
 parser.add_argument('--batchSize', type=int, default=16)
-parser.add_argument('--loadSize', type=int, default=512,
-                    help='image loading size')
-parser.add_argument('--dataRoot', type=str,
-                    default='')
+parser.add_argument('--loadSize', type=int, default=512, help='image loading size')
+parser.add_argument('--dataRoot', type=str, default='')
 parser.add_argument('--pretrained',type=str, default='', help='pretrained models for finetuning')
 parser.add_argument('--num_epochs', type=int, default=500, help='epochs')
 args = parser.parse_args()
@@ -54,6 +48,8 @@ loadSize = (args.loadSize, args.loadSize)
 
 if not os.path.exists(args.modelsSavePath):
     os.makedirs(args.modelsSavePath)
+if not os.path.exists(args.logPath):
+    os.makedirs(args.logPath)
 
 dataRoot = args.dataRoot
 
@@ -91,6 +87,7 @@ if cuda:
 
 print('OK!')
 num_epochs = args.num_epochs
+torch.autograd.set_detect_anomaly(True)
 
 for i in range(1, num_epochs + 1):
     netG.train()

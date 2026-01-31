@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 from torchvision import models
+from torchvision.models import VGG16_Weights
+
 
 #VGG16 feature extract
 class VGG16FeatureExtractor(nn.Module):
     def __init__(self):
         super(VGG16FeatureExtractor, self).__init__()
-        vgg16 = models.vgg16(pretrained=True)
-      #  vgg16.load_state_dict(torch.load('./vgg16-397923af.pth'))
+        vgg16 = models.vgg16(weights=VGG16_Weights.IMAGENET1K_V1)
         self.enc_1 = nn.Sequential(*vgg16.features[:5])
         self.enc_2 = nn.Sequential(*vgg16.features[5:10])
         self.enc_3 = nn.Sequential(*vgg16.features[10:17])
