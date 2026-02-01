@@ -47,27 +47,37 @@ class LossWithGAN_STE(nn.Module):
         self.lamda = Lamda
         self.writer = SummaryWriter(logPath)
 
-    def forward(self, input, mask, x_o1,x_o2,x_o3,output,mm, gt, count, epoch):
-        self.discriminator.zero_grad()
-        D_real = self.discriminator(gt, mask)
-        D_real = D_real.mean().sum() * -1
-        D_fake = self.discriminator(output, mask)
-        D_fake = D_fake.mean().sum() * 1
-        D_loss = torch.mean(F.relu(1.+D_real)) + torch.mean(F.relu(1.+D_fake))  #SN-patch-GAN loss
-        D_fake = -torch.mean(D_fake)     #  SN-Patch-GAN loss
-
+    def forward(self, input, mask, x_o1, x_o2, x_o3, output, mm, gt, count, epoch):
+        # 分离判别器训练，不与生成器损失共享计算图
+        with torch.no_grad():  # 防止判别器训练影响生成器梯度计算
+            D_real = self.discriminator(gt, mask)
+            D_real = D_real.mean().sum() * -1
+            D_fake = self.discriminator(output.detach(), mask)  # 使用detach()断开与生成器的连接
+            D_fake = D_fake.mean().sum() * 1
+            D_loss = torch.mean(F.relu(1.+D_real)) + torch.mean(F.relu(1.+D_fake))
+        
+        # 单独训练判别器
         self.D_optimizer.zero_grad()
-        D_loss.backward(retain_graph=True)
+        D_real_detached = self.discriminator(gt, mask)
+        D_real_detached = D_real_detached.mean().sum() * -1
+        D_fake_detached = self.discriminator(output.detach(), mask)
+        D_fake_detached = D_fake_detached.mean().sum() * 1
+        D_loss_for_train = torch.mean(F.relu(1.+D_real_detached)) + torch.mean(F.relu(1.+D_fake_detached))
+        D_loss_for_train.backward(retain_graph=False)  # 修改这里为False
         self.D_optimizer.step()
 
-        self.writer.add_scalar('LossD/Discrinimator loss', D_loss.item(), count)
+        self.writer.add_scalar('LossD/Discrinimator loss', D_loss_for_train.item(), count)
         
-        output_comp = mask * input + (1 - mask) * output
-       # import pdb;pdb.set_trace()
-        holeLoss = 10 * self.l1((1 - mask) * output, (1 - mask) * gt)
-        validAreaLoss = 2*self.l1(mask * output, mask * gt)  
+        # 生成器的对抗损失单独计算
+        D_fake_gen = self.discriminator(output, mask)  # 重新计算，不使用detach
+        D_fake_gen = -torch.mean(D_fake_gen)     # SN-Patch-GAN loss for generator
 
+        output_comp = mask * input + (1 - mask) * output
+        
+        holeLoss = 10 * self.l1((1 - mask) * output, (1 - mask) * gt)
+        validAreaLoss = 2 * self.l1(mask * output, mask * gt)  
         mask_loss = dice_loss(mm, 1-mask)
+        
         ### MSR loss ###
         masks_a = F.interpolate(mask, scale_factor=0.25)
         masks_b = F.interpolate(mask, scale_factor=0.5)
@@ -92,18 +102,13 @@ class LossWithGAN_STE(nn.Module):
                                           gram_matrix(feat_gt[i]))
             styleLoss += 120 * self.l1(gram_matrix(feat_output_comp[i]),
                                           gram_matrix(feat_gt[i]))
-        """ if self.numOfGPUs > 1:
-            holeLoss = holeLoss.sum() / self.numOfGPUs
-            validAreaLoss = validAreaLoss.sum() / self.numOfGPUs
-            prcLoss = prcLoss.sum() / self.numOfGPUs
-            styleLoss = styleLoss.sum() / self.numOfGPUs """
+
         self.writer.add_scalar('LossG/Hole loss', holeLoss.item(), count)    
         self.writer.add_scalar('LossG/Valid loss', validAreaLoss.item(), count) 
         self.writer.add_scalar('LossG/msr loss', msrloss.item(), count)   
         self.writer.add_scalar('LossPrc/Perceptual loss', prcLoss.item(), count)    
         self.writer.add_scalar('LossStyle/style loss', styleLoss.item(), count)
 
-        GLoss = msrloss+ holeLoss + validAreaLoss+ prcLoss + styleLoss + 0.1 * D_fake + 1*mask_loss
+        GLoss = msrloss + holeLoss + validAreaLoss + prcLoss + styleLoss + 0.1 * D_fake_gen + 1*mask_loss
         self.writer.add_scalar('Generator/Joint loss', GLoss.item(), count)    
-        return GLoss.sum()
-    
+        return GLoss
